@@ -1,5 +1,7 @@
 # 🚀 CPA Proxy for Copilot Chat
 
+[English](README.md) | [简体中文](README_zh.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.116%2B-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
 
