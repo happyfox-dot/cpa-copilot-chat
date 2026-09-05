@@ -6,7 +6,7 @@
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.116%2B-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
 [![Release](https://img.shields.io/github/v/release/happyfox-dot/cpa-copilot-chat?color=blue&logo=github)](https://github.com/happyfox-dot/cpa-copilot-chat/releases)
 
-让 **GitHub Copilot Chat** 无缝连接你本地的 **CPA (EasyCLIProxyAPI / CLI Proxy API)** 或**任意兼容 OpenAI 规范的第三方模型供应商（如 DeepSeek、One API、New API、OpenRouter、硅基流动等）**。
+让 **GitHub Copilot Chat** 无缝连接你本地的 **CPA (EasyCLIProxyAPI / CLI Proxy API)** 或**任意兼容 OpenAI / Anthropic 协议的第三方模型供应商（如 DeepSeek、Claude 原生/中转、One API、New API、OpenRouter 等）**。
 
 通过 VS Code 官方原生的 `LanguageModelChatProvider` 接口，将前沿顶级大模型（如 **Claude 3.7 / 4.6 Sonnet**、**Claude Opus 4.6 (Thinking)**、**Gemini 3.8 / 2.0 Flash**、**DeepSeek-R1** 等）直接挂载进 Copilot Chat 对话框与 Agent 模式中，告别官方老旧模型与高昂订阅费！
 
@@ -14,95 +14,80 @@
 
 ## ✨ 核心特性
 
-- 🏢 **多供应商自由扩展 (Multi-Provider Support)**：不仅支持本地 CPA，还支持在设置中添加任意数量的第三方供应商（如 DeepSeek 官方接口、中转站 One API、OpenRouter 等），多上游模型聚合在同一个 Copilot 菜单中！
-- 🔄 **动态自动同步模型**：启动或刷新时，自动从各供应商的 `/models` 接口获取最新可用模型，并以带前缀的清晰标签展示（例如 `[DeepSeek] DeepSeek V3`），无需手动写死配置。
-- ⚡ **原生 SSE 流式传输**：逐字快速流式输出，打字响应无延迟。
-- 🧠 **深度思考过程折叠 (Thinking Mode)**：针对带推理的模型（如 `Claude Opus (Thinking)`、`DeepSeek-R1` 等），原生发射 `LanguageModelThinkingPart`，在聊天框中自动呈现可折叠的“思考过程”卡片。
-- 🖼️ **多模态识图与文件感知 (Vision)**：完美支持在对话框中拖入图片、截图，或通过 `#file` 附加代码文件，自动转换为标准 Base64 多模态请求。
-- 🤖 **完整适配 Copilot Agent 模式**：深度打通 Function / Tool Calling 机制，支持 Agent 自主查找文件、修改项目代码、执行终端命令（如跑测试用例），实现全自动多轮 Agent 编程。
-- 🔒 **100% 本地隐私安全**：插件仅与你配置的地址通信，零遥测、不上传任何隐私或代码至未授权服务器。
+- 🖥️ **支持 UI 交互式添加与管理供应商**：无需手动手写复杂的 JSON 配置，按 `Ctrl+Shift+P` 即可通过向导一步步添加、管理或删除供应商！
+- 🔀 **支持 OpenAI 与 Anthropic 双协议切换 (`apiMode`)**：
+  - `openai` 模式：请求 `/chat/completions`，适配通用中转站、OneAPI/NewAPI、DeepSeek、OpenRouter；
+  - `anthropic` 模式：请求原生 `/v1/messages`，使用 `x-api-key` 认证，支持直连 Claude 官方及原生 Claude 代理。
+- 🏢 **多供应商自由扩展与聚合**：同时配置多个不同的供应商，所有模型在 Copilot 菜单中聚合分类展示。
+- 🔄 **动态自动同步模型**：启动或刷新时，自动从各供应商的 `/models` 接口拉取最新模型列表，无需手动维护。
+- ⚡ **原生 SSE 流式传输**：逐字快速流式输出，响应零延迟。
+- 🧠 **深度思考过程折叠 (Thinking Mode)**：针对带推理的模型原生支持可折叠的“思考过程”卡片。
+- 🖼️ **多模态识图与文件感知 (Vision)**：完美支持在对话框中拖入图片或通过 `#file` 附加代码文件。
+- 🤖 **完整适配 Copilot Agent 模式**：深度打通 Function / Tool Calling 机制，支持 Agent 自主查找文件、修改项目代码、执行终端命令。
+- 🔒 **100% 本地隐私安全**：插件仅与你配置的地址通信，零遥测。
 
 ---
 
-## ⚙️ 多供应商配置说明
+## 🚀 两种方式添加供应商
 
-默认情况下，插件已连接你本地运行的 CPA（`http://127.0.0.1:8317/v1`）。
+### 方式一：UI 弹窗交互式添加（最简单推荐 ⭐⭐⭐⭐⭐）
 
-如果你还想同时添加 **DeepSeek 官方平台**、**OpenRouter** 或 **自建 One API / New API 中转**，只需在 VS Code 的 `settings.json` 中配置 `cpa-copilot.providers` 数组即可：
+1. 在 VS Code 中按下快捷键 **`Ctrl + Shift + P`**。
+2. 输入并选择：**`CPA: Add Provider (UI / 交互式添加供应商)`**。
+3. 按照弹出引导依次输入：
+   1. **供应商名称**（如 `DeepSeek`、`AnyRouter`、`Claude官方`）；
+   2. **协议模式**（选择 `OpenAI 兼容协议` 或 `Anthropic 原生协议`）；
+   3. **Base URL**（如 `https://api.deepseek.com/v1`）；
+   4. **API Key**（输入你的 Token 密钥）。
+4. 点击回车后插件会自动保存并**立即自动刷新 Copilot 模型列表**！
+
+> **需要管理或删除？**  
+> 按 `Ctrl + Shift + P` 运行 **`CPA: Manage Providers (UI / 管理及删除供应商)`**，即可一键查看或删除已配置的供应商。
+
+---
+
+### 方式二：在 `settings.json` 中配置
+
+你也可以直接打开 VS Code 的 `settings.json` 手动增加 `cpa-copilot.providers`：
 
 ```json
 {
-  // 默认本地 CPA 服务地址与密钥
+  // 默认本地 CPA
   "cpa-copilot.baseUrl": "http://127.0.0.1:8317/v1",
   "cpa-copilot.apiKey": "123456",
 
-  // 🚀 添加更多额外的模型供应商
+  // 扩展供应商列表
   "cpa-copilot.providers": [
     {
       "name": "DeepSeek",
       "baseUrl": "https://api.deepseek.com/v1",
-      "apiKey": "sk-your-deepseek-key",
-      "models": ["deepseek-chat", "deepseek-reasoner"] // 可选：指定固定模型或留空自动获取
+      "apiKey": "sk-your-deepseek-api-key",
+      "apiMode": "openai", // 或省略，默认 openai
+      "models": ["deepseek-chat", "deepseek-reasoner"]
     },
     {
-      "name": "OpenRouter",
-      "baseUrl": "https://openrouter.ai/api/v1",
-      "apiKey": "sk-or-v1-your-key"
-    },
-    {
-      "name": "OneAPI中转",
-      "baseUrl": "https://your-oneapi-domain.com/v1",
-      "apiKey": "sk-your-oneapi-token"
+      "name": "Claude原生反代",
+      "baseUrl": "https://your-claude-proxy.com/v1",
+      "apiKey": "sk-ant-api03-xxx",
+      "apiMode": "anthropic" // 启用 Anthropic 原生协议
     }
   ]
 }
 ```
 
-### 配置生效与快捷命令 (`Ctrl + Shift + P`)
-- **`CPA: Refresh Models in Copilot Chat`**：修改配置后运行此命令（或保存 `settings.json`），插件会自动刷新所有供应商的模型列表！
-- **`CPA: Open Settings`**：直接打开可视化设置面板。
-
 ---
 
-## 📦 支持模型效果示例
+## ⚙️ 快捷命令一览 (`Ctrl + Shift + P`)
 
-在 Copilot Chat 的下拉菜单中，模型会自动加上供应商前缀分类呈现：
-
-* **默认 CPA 模型**：
-  * `Claude Opus 4.6 (Thinking)`
-  * `Claude Sonnet 4.6`
-  * `Gemini 3.8 Flash High`
-  * `Gemini 3.7 Flash High`
-* **自定义扩展供应商模型**（根据你的配置显示）：
-  * `[DeepSeek] DeepSeek V3`
-  * `[DeepSeek] DeepSeek R1 (Thinking)`
-  * `[OpenRouter] qwen/qwen-2.5-coder-32b-instruct`
-  * `[OneAPI中转] ...`
-
----
-
-## 🚀 快速上手
-
-### 1. 前置要求
-* VS Code 版本 **v1.116.0** 或更高版本。
-* 已安装 GitHub Copilot 及 GitHub Copilot Chat 扩展。
-
-### 2. 下载与安装
-1. 前往本仓库的 [Releases 发布页面](https://github.com/happyfox-dot/cpa-copilot-chat/releases)，下载最新版的 `.vsix` 文件。
-2. 打开 VS Code：
-   * 按下快捷键 `Ctrl + Shift + X` 打开扩展面板。
-   * 点击右上角的 **`...`**（更多操作菜单）。
-   * 选择 **从 VSIX 安装... (Install from VSIX...)**，并选择下载的 `.vsix` 文件。
-3. 按 `Ctrl + Shift + P` 输入并执行 `Developer: Reload Window`（重新加载窗口）。
-
-### 3. 使用方法
-1. 打开左侧的 Copilot Chat 侧边栏（快捷键 `Ctrl + Alt + I`）。
-2. 在输入框底部的**模型选择器**下拉菜单中：
-   * 找到 **CPA Proxy** 分组。
-   * 选择任意一个供应商的模型即可开始使用！
+| 命令 | 说明 |
+| :--- | :--- |
+| **`CPA: Add Provider (UI / 交互式添加供应商)`** | 弹窗引导添加新的供应商 |
+| **`CPA: Manage Providers (UI / 管理及删除供应商)`** | 弹窗列出并管理/删除现有供应商 |
+| **`CPA: Refresh Models in Copilot Chat`** | 立即重新向所有供应商拉取并刷新模型 |
+| **`CPA: Open Settings`** | 打开插件可视化设置页 |
 
 ---
 
 ## 📄 开源许可
 
-本项目基于 [MIT License](LICENSE) 开源。欢迎提 PR 或 Issue 共同完善！
+本项目基于 [MIT License](LICENSE) 开源。

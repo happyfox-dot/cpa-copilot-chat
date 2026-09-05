@@ -1,8 +1,8 @@
 {
   "name": "cpa-copilot-chat",
   "displayName": "CPA Proxy for Copilot Chat",
-  "description": "Seamlessly use your local CPA reverse proxy models (Claude 3.7, Gemini 2.0/3.8, DeepSeek-R1, etc.) or multiple OpenAI-compatible providers directly in GitHub Copilot Chat.",
-  "version": "1.1.0",
+  "description": "Seamlessly use your local CPA reverse proxy models (Claude 3.7, Gemini 2.0/3.8, DeepSeek-R1, etc.) or multiple OpenAI/Anthropic-compatible providers directly in GitHub Copilot Chat.",
+  "version": "1.2.0",
   "publisher": "happyfox",
   "license": "MIT",
   "icon": "icon.png",
@@ -31,6 +31,7 @@
     "gemini",
     "deepseek",
     "openai",
+    "anthropic",
     "proxy",
     "agent"
   ],
@@ -47,6 +48,14 @@
       }
     ],
     "commands": [
+      {
+        "command": "cpa-copilot.addProvider",
+        "title": "CPA: Add Provider (UI / 交互式添加供应商)"
+      },
+      {
+        "command": "cpa-copilot.manageProviders",
+        "title": "CPA: Manage Providers (UI / 管理及删除供应商)"
+      },
       {
         "command": "cpa-copilot.refreshModels",
         "title": "CPA: Refresh Models in Copilot Chat"
@@ -85,23 +94,35 @@
         "cpa-copilot.providers": {
           "type": "array",
           "default": [],
-          "description": "Additional OpenAI-compatible upstream providers (e.g. DeepSeek, One API, New API, OpenRouter, etc.).",
+          "description": "Additional upstream providers (OpenAI or Anthropic compatible).",
           "items": {
             "type": "object",
-            "required": ["name", "baseUrl"],
+            "required": [
+              "name",
+              "baseUrl"
+            ],
             "properties": {
               "name": {
                 "type": "string",
-                "description": "Unique provider name / label (e.g. 'DeepSeek', 'OpenRouter', 'OneAPI')."
+                "description": "Unique provider name / label (e.g. 'DeepSeek', 'Claude Official', 'AnyRouter')."
               },
               "baseUrl": {
                 "type": "string",
-                "description": "API Base URL (e.g. 'https://api.deepseek.com/v1', 'https://openrouter.ai/api/v1')."
+                "description": "API Base URL (e.g. 'https://api.deepseek.com/v1', 'https://api.anthropic.com/v1')."
               },
               "apiKey": {
                 "type": "string",
                 "default": "",
                 "description": "API Key for this provider."
+              },
+              "apiMode": {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "anthropic"
+                ],
+                "default": "openai",
+                "description": "Protocol mode: 'openai' (uses /chat/completions) or 'anthropic' (uses /messages)."
               },
               "models": {
                 "type": "array",
