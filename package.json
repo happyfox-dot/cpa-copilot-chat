@@ -1,8 +1,8 @@
 {
   "name": "cpa-copilot-chat",
   "displayName": "CPA Proxy for Copilot Chat",
-  "description": "Seamlessly use your local CPA reverse proxy models (Claude 3.7, Gemini 2.0/3.8, DeepSeek-R1, etc.) directly in GitHub Copilot Chat.",
-  "version": "1.0.0",
+  "description": "Seamlessly use your local CPA reverse proxy models (Claude 3.7, Gemini 2.0/3.8, DeepSeek-R1, etc.) or multiple OpenAI-compatible providers directly in GitHub Copilot Chat.",
+  "version": "1.1.0",
   "publisher": "happyfox",
   "license": "MIT",
   "icon": "icon.png",
@@ -62,12 +62,12 @@
         "cpa-copilot.baseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:8317/v1",
-          "description": "Base URL of your local CPA service."
+          "description": "Base URL of default local CPA service."
         },
         "cpa-copilot.apiKey": {
           "type": "string",
           "default": "123456",
-          "description": "API Key for your local CPA service."
+          "description": "API Key for default local CPA service."
         },
         "cpa-copilot.temperature": {
           "type": "number",
@@ -81,6 +81,42 @@
           "default": 0,
           "minimum": 0,
           "description": "Max output tokens (0 to use API default)."
+        },
+        "cpa-copilot.providers": {
+          "type": "array",
+          "default": [],
+          "description": "Additional OpenAI-compatible upstream providers (e.g. DeepSeek, One API, New API, OpenRouter, etc.).",
+          "items": {
+            "type": "object",
+            "required": ["name", "baseUrl"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Unique provider name / label (e.g. 'DeepSeek', 'OpenRouter', 'OneAPI')."
+              },
+              "baseUrl": {
+                "type": "string",
+                "description": "API Base URL (e.g. 'https://api.deepseek.com/v1', 'https://openrouter.ai/api/v1')."
+              },
+              "apiKey": {
+                "type": "string",
+                "default": "",
+                "description": "API Key for this provider."
+              },
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "Optional fixed model list. If empty, models will be fetched automatically via GET /models."
+              },
+              "temperature": {
+                "type": "number",
+                "description": "Optional temperature override for this provider."
+              }
+            }
+          }
         }
       }
     }

@@ -18,7 +18,7 @@ const FALLBACK_MODEL_IDS = [
   'gemini-3.1-flash-lite'
 ];
 
-function formatModelName(id) {
+function formatModelName(id, providerPrefix) {
   const customNames = {
     'claude-opus-4-6-thinking': 'Claude Opus 4.6 (Thinking)',
     'claude-sonnet-4-6': 'Claude Sonnet 4.6',
@@ -30,17 +30,20 @@ function formatModelName(id) {
     'gemini-3-flash': 'Gemini 3.0 Flash',
     'gemini-3.1-flash-image': 'Gemini 3.1 Flash Image',
     'gpt-oss-120b-medium': 'GPT-OSS 120B Medium',
-    'gemini-3.1-flash-lite': 'Gemini 3.1 Flash Lite'
+    'gemini-3.1-flash-lite': 'Gemini 3.1 Flash Lite',
+    'deepseek-chat': 'DeepSeek V3',
+    'deepseek-reasoner': 'DeepSeek R1 (Thinking)'
   };
 
-  if (customNames[id]) {
-    return customNames[id];
-  }
-
-  return id
+  const baseName = customNames[id] || id
     .split(/[-_]/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+
+  if (providerPrefix && providerPrefix.toLowerCase() !== 'default' && providerPrefix.toLowerCase() !== 'cpa') {
+    return `[${providerPrefix}] ${baseName}`;
+  }
+  return baseName;
 }
 
 function convertMessages(messages) {
@@ -151,6 +154,8 @@ class CpaChatProvider {
   constructor() {
     this.onDidChangeLanguageModelChatInformationEmitter = new vscode.EventEmitter();
     this.onDidChangeLanguageModelChatInformation = this.onDidChangeLanguageModelChatInformationEmitter.event;
+    // Map of model composite id -> provider endpoint details
+    this.modelRoutingMap = new Map();
   }
 
   refresh() {
@@ -159,52 +164,105 @@ class CpaChatProvider {
 
   async provideLanguageModelChatInformation(_options, _token) {
     const config = vscode.workspace.getConfiguration('cpa-copilot');
-    const baseUrl = (config.get('baseUrl') || 'http://127.0.0.1:8317/v1').replace(/\/+$/, '');
-    const apiKey = config.get('apiKey') || '123456';
+    const defaultBaseUrl = (config.get('baseUrl') || 'http://127.0.0.1:8317/v1').replace(/\/+$/, '');
+    const defaultApiKey = config.get('apiKey') || '123456';
+    const extraProviders = config.get('providers') || [];
 
-    let models = [];
-    try {
-      const res = await fetch(`${baseUrl}/models`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/json'
-        },
-        signal: AbortSignal.timeout(3000)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data?.data) && data.data.length > 0) {
-          models = data.data.map(m => m.id);
-          output.appendLine(`[INFO] Loaded ${models.length} live models from ${baseUrl}/models`);
+    // Construct unified list of providers to query
+    const providerList = [
+      {
+        name: 'CPA',
+        prefix: '',
+        baseUrl: defaultBaseUrl,
+        apiKey: defaultApiKey,
+        models: []
+      }
+    ];
+
+    if (Array.isArray(extraProviders)) {
+      for (const ep of extraProviders) {
+        if (ep && ep.name && ep.baseUrl) {
+          providerList.push({
+            name: ep.name.trim(),
+            prefix: ep.name.trim(),
+            baseUrl: ep.baseUrl.trim().replace(/\/+$/, ''),
+            apiKey: ep.apiKey ? ep.apiKey.trim() : defaultApiKey,
+            models: Array.isArray(ep.models) ? ep.models : [],
+            temperature: typeof ep.temperature === 'number' ? ep.temperature : undefined
+          });
         }
       }
-    } catch (err) {
-      output.appendLine(`[WARN] Could not fetch live models from ${baseUrl}/models (${err.message}). Using fallback list.`);
     }
 
-    if (models.length === 0) {
-      models = FALLBACK_MODEL_IDS;
-    }
+    this.modelRoutingMap.clear();
+    const resultModels = [];
 
-    return models.map(id => {
-      const isThinking = id.includes('thinking') || id.includes('r1') || id.includes('reasoning');
-      const isGemini = id.includes('gemini');
-      return {
-        id: id,
-        name: formatModelName(id),
-        family: 'cpa',
-        version: '1.0',
-        detail: `CPA Local: ${id}`,
-        maxInputTokens: isGemini ? 1000000 : 200000,
-        maxOutputTokens: 16384,
-        isUserSelectable: true,
-        capabilities: {
-          toolCalling: true,
-          imageInput: true,
-          thinking: isThinking
+    for (const p of providerList) {
+      let modelIds = [];
+
+      if (p.models && p.models.length > 0) {
+        modelIds = p.models;
+        output.appendLine(`[INFO] Provider [${p.name}] uses fixed list of ${modelIds.length} models`);
+      } else {
+        try {
+          const res = await fetch(`${p.baseUrl}/models`, {
+            headers: {
+              'Authorization': `Bearer ${p.apiKey}`,
+              'Accept': 'application/json'
+            },
+            signal: AbortSignal.timeout(3000)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data?.data) && data.data.length > 0) {
+              modelIds = data.data.map(m => m.id);
+              output.appendLine(`[INFO] Loaded ${modelIds.length} live models from [${p.name}] (${p.baseUrl}/models)`);
+            }
+          }
+        } catch (err) {
+          output.appendLine(`[WARN] Could not fetch models from [${p.name}] ${p.baseUrl}/models (${err.message}).`);
         }
-      };
-    });
+      }
+
+      // If default CPA provider failed and has no models, use fallbacks
+      if (modelIds.length === 0 && p.name === 'CPA') {
+        modelIds = FALLBACK_MODEL_IDS;
+      }
+
+      for (const rawId of modelIds) {
+        // Unique model ID exposed to VS Code
+        const compositeId = p.prefix ? `${p.prefix}__${rawId}` : rawId;
+
+        this.modelRoutingMap.set(compositeId, {
+          rawModelId: rawId,
+          providerName: p.name,
+          baseUrl: p.baseUrl,
+          apiKey: p.apiKey,
+          temperature: p.temperature
+        });
+
+        const isThinking = rawId.includes('thinking') || rawId.includes('r1') || rawId.includes('reasoning');
+        const isGemini = rawId.includes('gemini');
+
+        resultModels.push({
+          id: compositeId,
+          name: formatModelName(rawId, p.prefix),
+          family: 'cpa',
+          version: '1.0',
+          detail: `${p.name}: ${rawId}`,
+          maxInputTokens: isGemini ? 1000000 : 200000,
+          maxOutputTokens: 16384,
+          isUserSelectable: true,
+          capabilities: {
+            toolCalling: true,
+            imageInput: true,
+            thinking: isThinking
+          }
+        });
+      }
+    }
+
+    return resultModels;
   }
 
   async provideTokenCount(_modelInfo, text, _token) {
@@ -232,16 +290,23 @@ class CpaChatProvider {
 
   async provideLanguageModelChatResponse(modelInfo, messages, options, progress, token) {
     const config = vscode.workspace.getConfiguration('cpa-copilot');
-    const baseUrl = (config.get('baseUrl') || 'http://127.0.0.1:8317/v1').replace(/\/+$/, '');
-    const apiKey = config.get('apiKey') || '123456';
-    const temperature = config.get('temperature', 0.3);
+    const globalTemperature = config.get('temperature', 0.3);
     const maxTokens = config.get('maxTokens', 0);
 
+    // Look up target provider route
+    const route = this.modelRoutingMap.get(modelInfo.id) || {
+      rawModelId: modelInfo.id,
+      providerName: 'Default',
+      baseUrl: (config.get('baseUrl') || 'http://127.0.0.1:8317/v1').replace(/\/+$/, ''),
+      apiKey: config.get('apiKey') || '123456'
+    };
+
+    const temperature = typeof route.temperature === 'number' ? route.temperature : globalTemperature;
     const convertedMessages = convertMessages(messages);
     const convertedTools = convertTools(options?.tools);
 
     const reqBody = {
-      model: modelInfo.id,
+      model: route.rawModelId,
       messages: convertedMessages,
       stream: true,
       stream_options: { include_usage: true }
@@ -260,13 +325,13 @@ class CpaChatProvider {
     const controller = new AbortController();
     token?.onCancellationRequested(() => controller.abort());
 
-    output.appendLine(`[REQUEST] Streaming chat completion to ${baseUrl}/chat/completions (model: ${modelInfo.id}, messages: ${convertedMessages.length})`);
+    output.appendLine(`[REQUEST] Streaming to [${route.providerName}] ${route.baseUrl}/chat/completions (model: ${route.rawModelId}, messages: ${convertedMessages.length})`);
 
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await fetch(`${route.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${route.apiKey}`
       },
       body: JSON.stringify(reqBody),
       signal: controller.signal
@@ -279,7 +344,7 @@ class CpaChatProvider {
     }
 
     if (!res.body) {
-      throw new Error('No response body received from CPA server.');
+      throw new Error('No response body received from server.');
     }
 
     const reader = res.body.getReader();
@@ -371,7 +436,6 @@ class CpaChatProvider {
       }
     }
 
-    // Flush any remaining tool calls if stream ended unexpectedly
     for (const tc of pendingToolCalls.values()) {
       emitToolCall(tc, progress);
     }
